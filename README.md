@@ -40,16 +40,66 @@ Optional settings: copy `papermind.example.toml` to `papermind.toml` and edit it
 
 ## Use
 
-Put books anywhere (the `books/` folder is git-ignored, so your library never reaches GitHub):
+Put books anywhere (the `books/` folder is git-ignored, so your library never reaches GitHub).
+
+**A whole library at once.** Arrange it as one folder per shelf, optionally one sub-folder per author:
+
+```
+books/
+  fantasy/
+    Terry Pratchett/         <- author (with --author-from-folder)
+      Mort.epub
+      Small Gods.FB2
+  science fiction/
+    Stanislaw Lem/
+      Solaris.djvu
+```
 
 ```bash
-python -m papermind.ingest --shelf fantasy books/fantasy
-python -m papermind.ingest --shelf scifi books/scifi/some_book.epub
+python -m papermind.ingest --auto-shelves books --author-from-folder --dry-run   # preview, writes nothing
+python -m papermind.ingest --auto-shelves books --author-from-folder             # do it
 python -m papermind.server
 ```
 
-Open <http://127.0.0.1:5050>. Re-running ingest skips books already on the shelf
-(matched by file content, not name); `--replace` re-ingests them.
+Each sub-folder of `books/` becomes a shelf. Re-running skips books already on the shelf (matched by
+file content, not name), so you can add new books and run the same command again; `--replace`
+re-ingests them. One broken book never stops the run: it is listed at the end.
+
+**One shelf, files or folders:**
+
+```bash
+python -m papermind.ingest --shelf fantasy books/fantasy
+python -m papermind.ingest --shelf scifi "books/scifi/Some Book.epub" --author "Some Author"
+```
+
+Open <http://127.0.0.1:5050> to ask.
+
+**Names on Linux.** Extensions are matched in any letter case (`.EPUB`, `.Fb2`, `.fb2.ZIP`). Spaces and
+odd characters in file and folder names are fine (quote paths with spaces in the shell). Hidden files,
+macOS `._*` files and `~$*` lock files are skipped. Shelf names must be simple for Chroma, so a folder
+called `Science Fiction` becomes the shelf `Science-Fiction` and a Cyrillic name is transliterated
+(`Научная фантастика` becomes `Nauchnaya-fantastika`); the run prints each change. Letter case is
+kept, but a folder that differs from an existing shelf only by case (`discworld` vs `DiscWorld`)
+goes into the existing shelf instead of creating a second one.
+
+**Authors.** The author comes from the file's metadata (`Pratchett, Terry` becomes `Terry Pratchett`).
+PDF, TXT and DjVu files usually have none, so use `--author-from-folder` (the folder name wins over
+metadata) or `--author "Name"` for the whole run. The author matters for the voice mode.
+
+## Formats
+
+| Format | How it is read |
+|---|---|
+| EPUB | natively, with chapters |
+| FB2, FB2.ZIP, FBZ | natively, with chapters (old Windows-1251 files work) |
+| PDF | natively, grouped into 10-page sections (needs a text layer) |
+| TXT | natively; UTF-8 or Windows-1251; chapters found by "Chapter N"/"Глава N" headings |
+| DjVu | text layer via `djvutxt` (`sudo apt install djvulibre-bin`) |
+| MOBI, AZW3, DOCX, RTF, ODT, HTML, ... | converted to EPUB with Calibre's `ebook-convert` (`sudo apt install calibre`) |
+
+`python -m papermind.ingest --doctor` shows which of these tools are installed. A scan with no text layer
+(PDF or DjVu) is reported as EMPTY and needs OCR first, for example `ddjvu -format=pdf in.djvu out.pdf`
+followed by `ocrmypdf out.pdf ocr.pdf`.
 
 ## Two modes
 
@@ -83,7 +133,8 @@ python bench/run_benchmark.py bench/my_questions.csv
 
 ```
 papermind/
-  readers/      epub.py, pdf.py       books -> chapters
+  readers/      epub, pdf, fb2, txt, djvu, Calibre fallback   books -> chapters
+  naming.py                           shelf names, author normalisation
   chunking.py                         paragraph-aware chunks with overlap
   embeddings.py                       Ollama bge-m3 (and a hash embedder for tests)
   store.py  retrieve.py  answer.py    Chroma shelves, filtered retrieval, cited answers
@@ -100,7 +151,7 @@ such as a podcast studio or a book analyzer, can call later.
 
 - Language detection is script-based (Cyrillic vs Latin) plus the epub's own language tag.
 - No cross-language query translation: ask in the language of the book you want to hit.
-- Scanned PDFs without a text layer are reported as empty; they need OCR first.
+- Scans without a text layer (PDF, DjVu) are reported as empty; they need OCR first.
 - Answers are one-shot; there is no chat history yet.
 - Not tested against real Ollama models in the development environment; run the benchmark on
   your machine first.
