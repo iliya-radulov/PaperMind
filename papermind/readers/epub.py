@@ -1,7 +1,6 @@
 """EPUB reader that keeps the chapter structure (needed for citations and spoiler limits)."""
 from __future__ import annotations
 
-import hashlib
 import warnings
 from pathlib import Path
 
@@ -9,18 +8,11 @@ from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 from ebooklib import ITEM_DOCUMENT, epub
 
 from ..langtag import detect_language
-from ..models import Book, Chapter
+from ..models import Book
+from .common import assemble, file_hash  # noqa: F401  (file_hash re-exported for older imports)
 
 _BLOCKS = ("p", "div", "li", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6")
 _SPLIT_HEADINGS = ("h1", "h2")
-
-
-def file_hash(path: Path) -> str:
-    h = hashlib.sha1()
-    with path.open("rb") as fh:
-        for block in iter(lambda: fh.read(1 << 20), b""):
-            h.update(block)
-    return h.hexdigest()[:16]
 
 
 def _meta(book: epub.EpubBook, key: str) -> str:
@@ -59,33 +51,10 @@ def read_epub(path: Path, min_chapter_words: int = 120) -> Book:
     title = _meta(book, "title") or path.stem
     author = _meta(book, "creator") or "Unknown"
 
-    chapters: list[Chapter] = []
-    pending_title, pending_paras, pending_words = "", [], 0
-
-    def flush(force: bool = False) -> None:
-        nonlocal pending_title, pending_paras, pending_words
-        if pending_paras and (pending_words >= min_chapter_words or force):
-            chapters.append(
-                Chapter(
-                    index=len(chapters) + 1,
-                    title=pending_title or f"Chapter {len(chapters) + 1}",
-                    text="\n\n".join(pending_paras),
-                )
-            )
-            pending_title, pending_paras, pending_words = "", [], 0
-
+    sections: list[tuple[str, list[str]]] = []
     for item in book.get_items_of_type(ITEM_DOCUMENT):
-        for heading, paras in _sections(item.get_content()):
-            # a heading starts a new chapter only if what we hold is already long enough
-            if pending_words >= min_chapter_words:
-                flush()
-            if not pending_title:
-                pending_title = heading
-            elif heading:
-                pending_paras.append(heading)
-            pending_paras.extend(paras)
-            pending_words += sum(len(p.split()) for p in paras)
-    flush(force=True)  # whatever is left at the end belongs to the last chapter
+        sections.extend(_sections(item.get_content()))
+    chapters = assemble(sections, min_chapter_words)
 
     sample = "\n".join(c.text[:2000] for c in chapters[:3])
     language = detect_language(sample, _meta(book, "language"))
