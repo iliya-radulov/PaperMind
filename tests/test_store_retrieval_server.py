@@ -73,7 +73,7 @@ def test_cli_ingest_folder(cfg, tmp_path, fantasy_epub, monkeypatch, capsys):
 
 
 def test_server_endpoints(cfg, shelf):
-    def fake_chat(cfg_, question, passages):
+    def fake_chat(cfg_, question, passages, persona=None):
         return {"answer": f"stub answer using {len(passages)} passages [1]", "prompt_tokens": 10, "truncated": False}
 
     app = create_app(cfg, embedder=HashEmbedder(), chat_fn=fake_chat)
@@ -102,3 +102,25 @@ def test_prompt_contains_numbered_cited_passages(shelf):
     ps = retrieve(col, emb, "dragon", k=2)
     prompt = build_prompt("Who is the dragon?", ps)
     assert "[1] The Dragon Road" in prompt and "[2]" in prompt and "ONLY" in prompt
+
+
+def test_persona_mode_filters_by_author_and_passes_persona(cfg, shelf):
+    seen = {}
+
+    def fake_chat(cfg_, question, passages, persona=None):
+        seen["persona"], seen["authors"] = persona, {p.author for p in passages}
+        return {"answer": "in voice", "prompt_tokens": 1, "truncated": False}
+
+    c = create_app(cfg, embedder=HashEmbedder(), chat_fn=fake_chat).test_client()
+    authors = c.get("/api/authors?shelf=mixed").get_json()["authors"]
+    assert {a["author"] for a in authors} == {"Ann Author", "Bob Writer"}
+
+    r = c.post("/api/ask", json={"shelf": "mixed", "question": "what is time?", "mode": "persona", "author": "Bob Writer"})
+    assert r.status_code == 200 and r.get_json()["persona"] == "Bob Writer"
+    assert seen["authors"] == {"Bob Writer"}  # only this author's writing is retrieved
+    assert seen["persona"].name == "Bob Writer"
+
+    assert c.post("/api/ask", json={"shelf": "mixed", "question": "x", "mode": "persona"}).status_code == 400
+    # factual mode passes no persona
+    c.post("/api/ask", json={"shelf": "mixed", "question": "dragon"})
+    assert seen["persona"] is None

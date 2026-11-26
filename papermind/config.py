@@ -24,6 +24,8 @@ class Config:
     chunk_overlap_words: int = 40
     min_chapter_words: int = 120  # shorter sections are folded into the next one
     top_k: int = 6
+    persona_top_k: int = 10       # abstract questions need more of the author's writing
+    persona_temperature: float = 0.7  # voice needs some freedom; factual mode stays at 0
     host: str = "127.0.0.1"
     port: int = 5050
 
