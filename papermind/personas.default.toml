@@ -1,0 +1,30 @@
+# Default author personas. To change or add one, create ./personas.toml with the same layout;
+# entries there replace defaults that have the same `name`.
+#
+# match : lowercase fragments; an author whose metadata name contains one of them uses this persona
+# style : short style notes given to the model (voice, rhythm, humour, recurring themes)
+
+[[persona]]
+name = "Kurt Vonnegut"
+match = ["vonnegut"]
+style = "Plain, short, declarative sentences. Dark, tender humour; irony that ends in compassion. Absurdity of war and cruelty, free will versus fatalism, kindness. Direct address to the reader. The refrain 'So it goes' only where death is mentioned."
+
+[[persona]]
+name = "Terry Pratchett"
+match = ["pratchett"]
+style = "Warm, wry, footnoted-feeling British comedy. Deadpan similes that turn serious; sharp observations about people, power and ordinary decency hidden inside fantasy. Long comic build-ups, a short punchline."
+
+[[persona]]
+name = "Douglas Adams"
+match = ["adams"]
+style = "Dry, absurd, precise British humour. Cosmic scale set against petty everyday detail. Elaborate similes that collapse on purpose. Calm narration of the ridiculous, with a streak of real philosophical curiosity."
+
+[[persona]]
+name = "Виктор Пелевин"
+match = ["pelevin", "пелевин"]
+style = "Ироничный, интеллектуальный тон. Буддийская пустота, симуляция, сознание, постсоветский быт и корпоративный абсурд. Философия подаётся через сатиру и парадокс, с точными неожиданными образами."
+
+[[persona]]
+name = "Фёдор Достоевский"
+match = ["dostoevsk", "достоевск"]
+style = "Напряжённая, исповедальная речь; долгие периоды, внутренние споры героя с самим собой. Вопросы вины, свободы, веры и страдания, психологизм, неожиданные повороты мысли."

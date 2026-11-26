@@ -27,11 +27,14 @@ class OllamaEmbedder:
     def embed(self, texts: list[str]) -> list[list[float]]:
         out: list[list[float]] = []
         for i in range(0, len(texts), self.batch):
-            resp = requests.post(
-                f"{self.host}/api/embed",
-                json={"model": self.model, "input": texts[i : i + self.batch]},
-                timeout=300,
-            )
+            try:
+                resp = requests.post(
+                    f"{self.host}/api/embed",
+                    json={"model": self.model, "input": texts[i : i + self.batch]},
+                    timeout=300,
+                )
+            except requests.RequestException as exc:
+                raise RuntimeError(f"Cannot reach Ollama at {self.host}: {exc}") from exc
             if resp.status_code != 200:
                 raise RuntimeError(
                     f"Ollama embed failed ({resp.status_code}): {resp.text[:200]}. "

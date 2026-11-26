@@ -51,6 +51,25 @@ python -m papermind.server
 Open <http://127.0.0.1:5050>. Re-running ingest skips books already on the shelf
 (matched by file content, not name); `--replace` re-ingests them.
 
+## Two modes
+
+- **About the books** (default): factual answers from the retrieved passages, with `[1]`, `[2]` citations.
+- **In the author's voice**: ask an abstract question ("does the self need time?", "is honesty worth it?")
+  and get a short piece the author might plausibly write, built from the passages retrieved from that
+  author's own books. It is a pastiche, not a real statement by the author. The model is told to take
+  ideas and voice from the passages, apply the outlook to questions the books never address without
+  inventing facts or quotes, and end with a plain out-of-character `Grounding:` note saying which
+  passages it drew on and whether the question went beyond them.
+
+Style notes per author live in `papermind/personas.default.toml` (Vonnegut, Pratchett, Adams, Pelevin,
+Dostoevsky). Add or change authors by creating `personas.toml` next to where you run the server
+(same layout, entries with the same `name` replace the defaults). An author with no entry still works,
+with a generic "use the voice of the passages" style. Voice mode uses `persona_top_k` (default 10)
+and `persona_temperature` (default 0.7) from the config.
+
+Passage labels say "section N", not "chapter N": an epub's title page, dedication and so on count as
+sections, so the section number can be larger than the printed chapter number.
+
 ## Check retrieval before trusting answers
 
 Copy `bench/questions.example.csv`, write 20-30 questions with a few exact words from the passage

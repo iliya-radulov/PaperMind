@@ -9,3 +9,5 @@ chunk_overlap_words = 40
 top_k = 6
 host = "127.0.0.1"
 port = 5050
+persona_top_k = 10
+persona_temperature = 0.7
