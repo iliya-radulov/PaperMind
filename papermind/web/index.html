@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PaperMind</title>
+<style>
+  :root { --bg:#faf8f4; --fg:#26221d; --muted:#6f675c; --card:#fff; --line:#e4ddd1; --accent:#7a4e2d; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1b1916; --fg:#ece6dc; --muted:#a39a8c; --card:#242120; --line:#38332d; --accent:#d9a066; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 Georgia, "Times New Roman", serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: .95rem; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  select, input, textarea, button { font: inherit; color: inherit; background: var(--card);
+    border:1px solid var(--line); border-radius:6px; padding:8px 10px; }
+  textarea { width:100%; min-height:84px; resize:vertical; }
+  button { background:var(--accent); color:#fff; border-color:var(--accent); cursor:pointer; }
+  button.secondary { background:var(--card); color:var(--fg); border-color:var(--line); }
+  button:disabled { opacity:.5; cursor:wait; }
+  label { color:var(--muted); font-size:.85rem; display:flex; flex-direction:column; gap:2px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin-top:16px; }
+  .answer { white-space: pre-wrap; }
+  .warn { color:#b3261e; font-size:.9rem; }
+  .err { color:#b3261e; margin-top:12px; }
+  .pass { border-top:1px solid var(--line); padding-top:10px; margin-top:10px; }
+  .pass h3 { font-size:.95rem; margin:0 0 4px; }
+  .pass .meta { color:var(--muted); font-size:.8rem; }
+  .pass p { margin:6px 0 0; white-space:pre-wrap; font-size:.93rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PaperMind</h1>
+  <p class="sub">Ask your own shelf. Answers come only from your books, with citations.</p>
+
+  <div class="row">
+    <label>Shelf <select id="shelf"></select></label>
+    <label>Book <select id="book"><option value="">All books</option></select></label>
+    <label>Read up to chapter <input id="maxch" type="number" min="1" style="width:110px" placeholder="no limit" disabled></label>
+    <label>Passages <input id="k" type="number" min="1" max="20" value="6" style="width:80px"></label>
+  </div>
+  <textarea id="q" placeholder="Ask about plot, characters, themes, a quote…"></textarea>
+  <div class="row" style="margin-top:10px">
+    <button id="ask">Ask</button>
+    <button id="search" class="secondary">Only show passages</button>
+  </div>
+  <div id="out"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let books = [];
+
+async function api(path, body) {
+  const r = await fetch(path, body ? {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)} : {});
+  const j = await r.json();
+  if (!r.ok) { const e = new Error(j.error || r.statusText); e.data = j; throw e; }
+  return j;
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+async function loadShelves() {
+  const {shelves} = await api("/api/shelves");
+  $("shelf").innerHTML = shelves.map(s => `<option>${esc(s)}</option>`).join("") || "<option value=''>no shelves yet</option>";
+  await loadBooks();
+}
+async function loadBooks() {
+  books = [];
+  $("book").innerHTML = '<option value="">All books</option>';
+  if (!$("shelf").value) return;
+  try { books = (await api("/api/books?shelf=" + encodeURIComponent($("shelf").value))).books; } catch (e) {}
+  $("book").innerHTML += books.map(b => `<option value="${esc(b.book_id)}">${esc(b.author)} — ${esc(b.title)}</option>`).join("");
+  onBook();
+}
+function onBook() {
+  const b = books.find(b => b.book_id === $("book").value);
+  $("maxch").disabled = !b;
+  $("maxch").value = "";
+  $("maxch").max = b ? b.chapters : "";
+  $("maxch").placeholder = b ? "1–" + b.chapters : "pick a book";
+}
+function passagesHtml(ps) {
+  return ps.map((p, i) => `<div class="pass"><h3>[${i+1}] ${esc(p.title)} — ${esc(p.author)}</h3>
+    <div class="meta">chapter ${p.chapter_index}: ${esc(p.chapter_title)} · distance ${p.distance.toFixed(3)}</div>
+    <p>${esc(p.text)}</p></div>`).join("");
+}
+async function go(withAnswer) {
+  const question = $("q").value.trim();
+  if (!question) return;
+  $("ask").disabled = $("search").disabled = true;
+  $("out").innerHTML = `<div class="card">${withAnswer ? "Thinking…" : "Searching…"}</div>`;
+  try {
+    const j = await api(withAnswer ? "/api/ask" : "/api/search", {
+      shelf: $("shelf").value, question, k: +$("k").value || 6,
+      book_id: $("book").value || null, max_chapter: $("maxch").value || null });
+    let html = "";
+    if (withAnswer) {
+      html += `<div class="card"><div class="answer">${esc(j.answer)}</div>` +
+        (j.truncated ? `<p class="warn">The prompt filled the model's context window; the answer may ignore some passages. Lower "Passages" or raise num_ctx.</p>` : "") + `</div>`;
+    }
+    html += `<div class="card"><strong>Passages</strong>${passagesHtml(j.passages)}</div>`;
+    $("out").innerHTML = html;
+  } catch (e) {
+    $("out").innerHTML = `<div class="err">${esc(e.message)}</div>` + (e.data && e.data.passages ? `<div class="card"><strong>Passages</strong>${passagesHtml(e.data.passages)}</div>` : "");
+  } finally { $("ask").disabled = $("search").disabled = false; }
+}
+$("shelf").onchange = loadBooks; $("book").onchange = onBook;
+$("ask").onclick = () => go(true); $("search").onclick = () => go(false);
+$("q").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) go(true); });
+loadShelves();
+</script>
+</body>
+</html>
