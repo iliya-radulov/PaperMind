@@ -1,0 +1,20 @@
+# Your books and the vector store stay on your machine only
+books/
+chroma_db/
+*.epub
+*.pdf
+*.mobi
+
+# Local config
+papermind.toml
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
